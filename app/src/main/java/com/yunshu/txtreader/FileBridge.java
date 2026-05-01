@@ -1,5 +1,7 @@
 package com.yunshu.txtreader;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.os.Environment;
 import android.webkit.JavascriptInterface;
@@ -26,6 +28,33 @@ public class FileBridge {
     public FileBridge(Context context) {
         this.context = context;
     }
+
+    // ==================== 剪贴板操作 ====================
+
+    /** 复制文本到系统剪贴板 */
+    @JavascriptInterface
+    public void copyToClipboard(String text) {
+        ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null) {
+            cm.setPrimaryClip(ClipData.newPlainText("txt", text));
+        }
+    }
+
+    /** 从系统剪贴板粘贴文本 */
+    @JavascriptInterface
+    public String pasteFromClipboard() {
+        ClipboardManager cm = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (cm != null && cm.hasPrimaryClip()) {
+            ClipData clip = cm.getPrimaryClip();
+            if (clip != null && clip.getItemCount() > 0) {
+                CharSequence text = clip.getItemAt(0).getText();
+                return text != null ? text.toString() : "";
+            }
+        }
+        return "";
+    }
+
+    // ==================== 文件夹 ====================
 
     /** 主文件夹：Documents/TXTReader/ */
     private File getMainDir() {

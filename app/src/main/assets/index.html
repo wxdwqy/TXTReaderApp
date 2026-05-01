@@ -29,7 +29,21 @@
         .btn:active { background:#357abd; }
         .btn-secondary { background:#999; }
         .btn-success { background:#5cb85c; }
+        .edit-toolbar {
+            display:none; position:fixed; top:50px; left:0; right:0;
+            background:#f8f8f8; border-bottom:1px solid #e0e0e0;
+            padding:6px 10px; z-index:99;
+            display:none; justify-content:center; gap:6px;
+        }
+        .edit-toolbar.show { display:flex; }
+        .edit-btn {
+            padding:6px 14px; border:1px solid #ddd; border-radius:6px;
+            background:white; font-size:13px; cursor:pointer; color:#333;
+            -webkit-user-select:none; user-select:none;
+        }
+        .edit-btn:active { background:#e8e8e8; }
         .content { margin-top:60px; padding:20px 15px 100px; min-height:100vh; }
+        .content.with-editbar { margin-top:95px; }
         .read-mode { white-space:pre-wrap; word-wrap:break-word; text-align:justify; }
         .edit-mode {
             width:100%; min-height:80vh; border:none; background:transparent;
@@ -153,6 +167,14 @@
             <button class="btn btn-success" onclick="saveFile()" id="saveBtn" style="display:none" title="保存">💾</button>
             <button class="btn btn-secondary" onclick="showSettings()" title="设置">⚙️</button>
         </div>
+    </div>
+
+    <!-- 编辑工具栏 -->
+    <div class="edit-toolbar" id="editToolbar">
+        <button class="edit-btn" onclick="editSelectAll()">全选</button>
+        <button class="edit-btn" onclick="editCopy()">复制</button>
+        <button class="edit-btn" onclick="editCut()">剪切</button>
+        <button class="edit-btn" onclick="editPaste()">粘贴</button>
     </div>
 
     <div class="content" id="content">
@@ -374,12 +396,77 @@
 
         function renderContent() {
             const content = document.getElementById('content');
+            const editBar = document.getElementById('editToolbar');
             if (isEditing) {
                 content.innerHTML = `<textarea class="edit-mode" id="editor">${escapeHtml(currentContent)}</textarea>`;
+                editBar.classList.add('show');
+                content.classList.add('with-editbar');
             } else {
                 content.innerHTML = `<div class="read-mode">${escapeHtml(currentContent)}</div>`;
+                editBar.classList.remove('show');
+                content.classList.remove('with-editbar');
             }
             applyStyles();
+        }
+
+        // ========== 编辑工具栏：复制/粘贴/剪切/全选 ==========
+        function getEditor() { return document.getElementById('editor'); }
+
+        function editSelectAll() {
+            const editor = getEditor();
+            if (editor) { editor.focus(); editor.select(); }
+        }
+
+        function editCopy() {
+            const editor = getEditor();
+            if (!editor) return;
+            const text = editor.value.substring(editor.selectionStart, editor.selectionEnd);
+            if (!text) { showToast('请先选中文字'); return; }
+            if (isNativeMode) {
+                FileBridge.copyToClipboard(text);
+                showToast('已复制 ' + text.length + ' 个字');
+            } else {
+                navigator.clipboard.writeText(text).then(() => showToast('已复制'));
+            }
+        }
+
+        function editCut() {
+            const editor = getEditor();
+            if (!editor) return;
+            const start = editor.selectionStart, end = editor.selectionEnd;
+            const text = editor.value.substring(start, end);
+            if (!text) { showToast('请先选中文字'); return; }
+            if (isNativeMode) {
+                FileBridge.copyToClipboard(text);
+            } else {
+                navigator.clipboard.writeText(text);
+            }
+            editor.value = editor.value.substring(0, start) + editor.value.substring(end);
+            editor.selectionStart = editor.selectionEnd = start;
+            currentContent = editor.value;
+            showToast('已剪切 ' + text.length + ' 个字');
+        }
+
+        function editPaste() {
+            const editor = getEditor();
+            if (!editor) return;
+            if (isNativeMode) {
+                const text = FileBridge.pasteFromClipboard();
+                if (!text) { showToast('剪贴板为空'); return; }
+                insertTextAtCursor(editor, text);
+                showToast('已粘贴 ' + text.length + ' 个字');
+            } else {
+                navigator.clipboard.readText().then(text => {
+                    if (text) insertTextAtCursor(editor, text);
+                });
+            }
+        }
+
+        function insertTextAtCursor(el, text) {
+            const start = el.selectionStart, end = el.selectionEnd;
+            el.value = el.value.substring(0, start) + text + el.value.substring(end);
+            el.selectionStart = el.selectionEnd = start + text.length;
+            currentContent = el.value;
         }
 
         function toggleEdit() {
